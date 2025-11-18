@@ -1,39 +1,28 @@
-# Stage 1: Build Next.js app
-
-FROM node:20-alpine AS builder
-
-# Set working directory
+# Stage 1: Dependencies
+FROM node:20-alpine AS deps
 WORKDIR /app
-
-# Copy package.json and lock file first to leverage Docker cache
 COPY package.json yarn.lock* ./
+RUN npm install --frozen-lockfile
 
-# Install all dependencies (dev + prod)
-RUN yarn install --frozen-lockfile
-
-# Copy the rest of the application
-COPY . .
-
-# Build the Next.js app
-RUN yarn build
-
-# Stage 2: Production image
-FROM node:20-alpine AS runner
-
+# Stage 2: Builder
+FROM node:20-alpine AS builder
 WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED 1
+RUN npm run build
 
-# Set environment to production
-ENV NODE_ENV=production
-
-# Copy only necessary files from builder
+# Stage 3: Runner
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV production
+# Add a non-root user for security
+RUN addgroup --system --gid 1001 nextjs
+RUN adduser --system --uid 1001 nextjs
+USER nextjs
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/next.config.js ./next.config.js  # optional
-
-# Expose the port your app runs on
 EXPOSE 3000
-
-# Start Next.js in production mode
-CMD ["yarn", "start"]
+CMD ["npm", "start"]
