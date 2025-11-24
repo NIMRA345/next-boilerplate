@@ -3,5 +3,5 @@ services:
     container_name: next-app
     image: next-boilerplate:latest       # ← your image name here
     ports:
-     - "3000:3000"
+     - "3001:3000"
     restart: always 
